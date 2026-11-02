@@ -51,17 +51,6 @@ overrides:
   # form-serializer maxDepth bypass + prototype-pollution + maxBodyLength bypass).
   # Transitive via wait-on (dev only). >=1.18.0 patches all; scoped to the vuln line.
   "axios@<1.18.0": ">=1.18.0"
-  # Patch brace-expansion ReDoS, now flagged on BOTH copies in the tree, each with its
-  # own vulnerable range, so each needs its own selector inside its own major:
-  #   v5 line (minimatch@10 requires ^5.0.5, via eslint>@eslint/config-array) — the
-  #     advisory has been widened twice since the first override (<5.0.7, then <5.0.8,
-  #     now <5.0.9); 5.0.9 is both the patch and the latest 5.x.
-  #   v2 line (minimatch@5, via workbox-build>...>ejs>jake>filelist) — was untouched
-  #     when the first override was written and is now in range (<2.1.4). minimatch@5
-  #     requires ^2.0.1, so 2.1.4 stays inside its consumer's range.
-  # Both are dev/build tooling only, never shipped.
-  "brace-expansion@>=2.0.0 <2.1.4": "^2.1.4"
-  "brace-expansion@>=3.0.0 <5.0.9": ">=5.0.9"
   # Patch fast-uri GHSA-5jgf-p345-68v8 / -f65p-4m7j-42xc / -fph4-wmhf-6fwf /
   # -jqff-g426-hqxp (widened again 2026-09-28: the floor this override targeted,
   # 3.1.5, is now itself flagged — every one of these four now reads <3.1.6).
@@ -82,6 +71,20 @@ overrides:
   "postcss@<8.5.18": "^8.5.18"
   # Patch shell-quote GHSA (<=1.8.4). Transitive via concurrently (dev). >=1.8.5 patched.
   "shell-quote@<1.8.5": ">=1.8.5"
+  # Patch minimatch GHSA-g3hv-75wg-m249 (<11.0.1: DoS via attacker-supplied patterns;
+  # only trusted repo patterns reach it here). No parent admits 11 yet: eslint,
+  # @eslint/config-array and typescript-estree ask ^10, glob ^9/^10, filelist ^5.
+  # Major 11 drops makeRe(), .regexp, AST and matchOne(); every consumer in the tree
+  # only calls match()/minimatch()/new Minimatch()/.pattern, so ^11 fits. Dev/build
+  # tooling only. Remove once those parents move to ^11.
+  "minimatch@<11.0.1": "^11.0.3"
+  # Patch glob GHSA-3g3m-2fjr-6pw4 (>=9.0.0 <=14.0.1: an aborted walk keeps reading
+  # directories). Two consumers, workbox-build (^11) and rimraf@5 (^10, via
+  # google-gax@5, optional, never called by the server runtime); both only call
+  # glob()/globSync(), unchanged in 14. Neither passes an AbortSignal, so this clears
+  # the audit rather than a live exposure. Remove once workbox-build and
+  # @google-cloud/firestore-api move past those ranges.
+  "glob@>=9.0.0 <14.0.2": "^14.0.3"
 allowBuilds:
   "@firebase/util": true
   esbuild: true
@@ -90,3 +93,11 @@ allowBuilds:
   # postinstall. Unlisted build scripts make `pnpm install --frozen-lockfile`
   # hard-fail with ERR_PNPM_IGNORED_BUILDS in CI. Prebuilt binaries, safe to run.
   sharp: true
+auditConfig:
+  ignoreGhsas:
+    # deepmerge <=4.3.1 has no patched release, and 16.0.3, the latest
+    # @rollup/plugin-node-resolve, still depends on it (via workbox-build, build
+    # time only). That plugin's single call merges its own static defaults, so no
+    # untrusted object reaches mergeObject(). Remove once a patch ships or the
+    # dependency goes away.
+    - GHSA-gcqx-w48m-w2h4
