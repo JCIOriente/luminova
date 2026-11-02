@@ -24,7 +24,12 @@ import {
   showcasePerson,
 } from "./showcase/project-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
-import { projectBoard, currentCargoId, type BoardCargo } from "./showcase/project-board.js";
+import {
+  projectBoard,
+  currentCargoId,
+  toBoardCargo,
+  type BoardCargo,
+} from "./showcase/project-board.js";
 import { memberProjectionUnchanged } from "./showcase/project-member.js";
 import { syncMemberShowcase } from "./showcase/sync-member.js";
 import { HttpsError } from "firebase-functions/v2/https";
@@ -393,12 +398,7 @@ async function readCargo(
   tx: FirebaseFirestore.Transaction,
 ): Promise<BoardCargo | null> {
   const snap = await tx.get(database.doc(`positions/${cargoId}`));
-  if (!snap.exists) return null;
-  return {
-    category: snap.get("category"),
-    title: snap.get("title"),
-    titleFemale: snap.get("titleFemale"),
-  };
+  return snap.exists ? toBoardCargo(snap) : null;
 }
 
 // Curated public projection: mirror a member write into the world-read boardShowcase
@@ -518,17 +518,21 @@ export const reprojectPublicProfiles = guardedOnCall(
         .limit(REPROJECT_SCAN_CAP)
         .get();
       truncated ||= snap.size === REPROJECT_SCAN_CAP;
-      for (const doc of snap.docs) {
-        try {
-          // The scan can be minutes old: projecting from it could republish an initiative
-          // that was un-finalized meanwhile, with no later trigger to correct it.
-          const live = await doc.ref.get();
-          await projectShowcase(database, kind, doc.id, live.data());
-          showcases += 1;
-        } catch (err) {
-          console.error("showcase reprojection failed", { id: doc.id, err });
-          failed.push(doc.id);
-        }
+      for (const batch of chunk(snap.docs, 10)) {
+        await Promise.all(
+          batch.map(async (doc) => {
+            try {
+              // The scan can be minutes old: projecting from it could republish an initiative
+              // that was un-finalized meanwhile, with no later trigger to correct it.
+              const live = await doc.ref.get();
+              await projectShowcase(database, kind, doc.id, live.data());
+              showcases += 1;
+            } catch (err) {
+              console.error("showcase reprojection failed", { id: doc.id, err });
+              failed.push(doc.id);
+            }
+          }),
+        );
       }
     }
     const members = await database.collection("members").limit(REPROJECT_SCAN_CAP).select().get();

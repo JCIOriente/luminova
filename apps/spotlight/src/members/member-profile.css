@@ -14,7 +14,7 @@
   color: var(--color-ink-1);
 }
 
-.member-dialog > div:not([class]) {
+.member-dialog-body {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -400,7 +400,7 @@
     animation: none;
   }
 
-  .member-dialog > div:not([class]) {
+  .member-dialog-body {
     overflow-y: auto;
   }
 

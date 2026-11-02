@@ -19,7 +19,7 @@ function Avatar({ person, size }: { person: ShowcasePerson; size: AvatarSize }) 
 function PersonName({ person, className }: { person: ShowcasePerson; className: string }) {
   if (!person.id) return <span className={className}>{person.name}</span>;
   return (
-    <MemberLink memberId={person.id} name={person.name} className={`${className} member-link`}>
+    <MemberLink memberId={person.id} name={person.name} className={className}>
       {person.name}
     </MemberLink>
   );

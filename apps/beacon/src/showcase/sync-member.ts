@@ -1,6 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
-import type { BoardCargo } from "./project-board.js";
-import { isPublishableMember } from "./project-board.js";
+import { isPublishableMember, toBoardCargo, type BoardCargo } from "./project-board.js";
 import {
   MEMBER_PROJECT_CAP,
   careerCargoIds,
@@ -40,16 +39,7 @@ export async function syncMemberShowcase(
       ),
     ]);
     const cargos = new Map<string, BoardCargo>(
-      cargoSnaps
-        .filter((snap) => snap.exists)
-        .map((snap) => [
-          snap.id,
-          {
-            category: snap.get("category"),
-            title: snap.get("title"),
-            titleFemale: snap.get("titleFemale"),
-          },
-        ]),
+      cargoSnaps.filter((snap) => snap.exists).map((snap) => [snap.id, toBoardCargo(snap)]),
     );
     const projects = projectSnap.docs.map((doc): MemberProjectSource => ({
       id: doc.id,

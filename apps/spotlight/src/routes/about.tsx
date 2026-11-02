@@ -191,7 +191,7 @@ function DirectivaHero({
               <MemberLink
                 memberId={president.id}
                 name={president.name}
-                className="pres-portrait-frame member-link"
+                className="pres-portrait-frame"
               >
                 <Portrait item={president} className="pres-portrait" />
               </MemberLink>
@@ -242,7 +242,7 @@ function DirectivaLedger({
             const num = String(startNum + i).padStart(2, "0");
             return (
               <Reveal key={m.id} delay={i * 60}>
-                <MemberLink memberId={m.id} name={m.name} className="ledger-row member-link">
+                <MemberLink memberId={m.id} name={m.name} className="ledger-row">
                   <div className="rank t-num">{num}</div>
                   <Portrait item={m} tintTeal={i % 2 === 1} />
                   <div className="who">
@@ -277,7 +277,7 @@ function DirectivaDirecciones({ members, note }: { members: BoardShowcaseItem[];
         <div className="jdl-strip">
           {members.map((m, i) => (
             <Reveal key={m.id} delay={i * 80}>
-              <MemberLink memberId={m.id} name={m.name} className="jdl-chip member-link">
+              <MemberLink memberId={m.id} name={m.name} className="jdl-chip">
                 <Portrait item={m} tintTeal />
                 <span className="role-label">{m.title}</span>
                 <div className="name">{m.name}</div>

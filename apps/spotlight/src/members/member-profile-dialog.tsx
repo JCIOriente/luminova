@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Dialog, ErrorState, cn, initials } from "@luminova/ui";
+import { Dialog, ErrorState, Icon, cn, initials } from "@luminova/ui";
 import type { MemberProjectRole, MemberShowcaseItem } from "@luminova/types/engine";
+import { formatES } from "../components/showcase/format";
 import { fetchMember } from "./member-showcase-firestore";
 import "./member-profile.css";
 
@@ -15,21 +16,6 @@ const ROLE_LABELS: Record<MemberProjectRole, string> = {
   CoDirector: "Codirección",
   Team: "Equipo",
 };
-
-// Inline: spotlight carries no icon package, and these three are all the dialog needs.
-const STROKE = {
-  width: 18,
-  height: 18,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-  "aria-hidden": true,
-} as const;
-
-const NUMBER = new Intl.NumberFormat("es-BO");
 
 /** A short history gets the small card: a tall panel beside two rows reads as empty. */
 function isBrief(member: MemberShowcaseItem): boolean {
@@ -85,11 +71,7 @@ function Panel({ member, brief }: { member: MemberShowcaseItem; brief: boolean }
           rel="noopener noreferrer"
           aria-label={`LinkedIn de ${member.name}`}
         >
-          <svg {...STROKE}>
-            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" />
-            <rect x="2" y="9" width="4" height="12" />
-            <circle cx="4" cy="4" r="2" />
-          </svg>
+          <Icon.linkedin />
           <span>LinkedIn</span>
         </a>
       )}
@@ -161,7 +143,7 @@ function Sheet({ member, brief }: { member: MemberShowcaseItem; brief: boolean }
                     <span className="member-project-title">{project.title}</span>
                     {project.personsImpacted > 0 && (
                       <span className="member-project-impact">
-                        {NUMBER.format(project.personsImpacted)} personas impactadas
+                        {formatES(project.personsImpacted)} personas impactadas
                       </span>
                     )}
                   </span>
@@ -170,7 +152,17 @@ function Sheet({ member, brief }: { member: MemberShowcaseItem; brief: boolean }
                   >
                     {ROLE_LABELS[project.role]}
                   </span>
-                  <svg {...STROKE} width={16} height={16}>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
                     <path d="M7 17 17 7" />
                     <path d="M8 7h9v9" />
                   </svg>
@@ -214,30 +206,23 @@ export function MemberProfileDialog({
   onClose: () => void;
 }) {
   const [load, setLoad] = useState<Load>({ status: "loading" });
-
-  const read = useCallback(
-    (isCurrent: () => boolean) => {
-      setLoad({ status: "loading" });
-      fetchMember(memberId).then(
-        (member) => {
-          if (isCurrent()) setLoad({ status: "ready", member });
-        },
-        (err: unknown) => {
-          console.error("member profile read failed", { memberId, err });
-          if (isCurrent()) setLoad({ status: "error" });
-        },
-      );
-    },
-    [memberId],
-  );
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let current = true;
-    read(() => current);
+    fetchMember(memberId).then(
+      (member) => {
+        if (current) setLoad({ status: "ready", member });
+      },
+      (err: unknown) => {
+        console.error("member profile read failed", { memberId, err });
+        if (current) setLoad({ status: "error" });
+      },
+    );
     return () => {
       current = false;
     };
-  }, [read]);
+  }, [memberId, attempt]);
 
   const member = load.status === "ready" ? load.member : null;
   const brief = member ? isBrief(member) : false;
@@ -252,17 +237,18 @@ export function MemberProfileDialog({
       description={member ? `Trayectoria de ${member.name}` : "Trayectoria de un miembro"}
       hideHeader
       overlayClassName="member-overlay"
-      contentClassName={cn(
-        "member-dialog",
-        (brief || load.status !== "ready" || !member) && "member-dialog-brief",
-      )}
+      contentClassName={cn("member-dialog", (!member || brief) && "member-dialog-brief")}
+      bodyClassName="member-dialog-body"
     >
       {load.status === "loading" && <Loading />}
       {load.status === "error" && (
         <ErrorState
           title="No se pudo cargar el perfil"
           description="Revisa tu conexión e inténtalo de nuevo."
-          onRetry={() => read(() => true)}
+          onRetry={() => {
+            setLoad({ status: "loading" });
+            setAttempt((n) => n + 1);
+          }}
         />
       )}
       {load.status === "ready" && !member && <Unavailable />}
@@ -273,10 +259,7 @@ export function MemberProfileDialog({
         </div>
       )}
       <button type="button" className="member-close" aria-label="Cerrar" onClick={onClose}>
-        <svg {...STROKE}>
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </svg>
+        <Icon.close />
       </button>
     </Dialog>
   );

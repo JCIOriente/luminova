@@ -42,6 +42,15 @@ export interface BoardCargo {
   titleFemale?: unknown;
 }
 
+/** The BoardCargo fields of a positions/{cargoId} doc snapshot. */
+export function toBoardCargo(snap: { get(field: string): unknown }): BoardCargo {
+  return {
+    category: snap.get("category"),
+    title: snap.get("title"),
+    titleFemale: snap.get("titleFemale"),
+  };
+}
+
 /** The member's current-term cargo id, or null when they hold no cargo this term. */
 export function currentCargoId(member: Record<string, unknown>, termKey: string): string | null {
   const positions = member.positions;
