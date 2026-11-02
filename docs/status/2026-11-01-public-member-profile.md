@@ -21,7 +21,9 @@
 
 - A member needs a `uid` to get a profile, so the `/me` opt-out is always reachable.
 - Left out: email, phone, birthdate, points, attendance and Best Member.
-- Admins cannot edit `bio` or `linkedinUrl`. The remedy for an abusive one is the takedown.
+- Admins cannot edit `bio` or `linkedinUrl`. The remedy for an abusive one is the takedown, and
+  an active member can turn their profile back on at `/me`. A lock would need a new Admin-only
+  field.
 - `isPastPresident` is Admin-only, because it is now a public badge.
 
 ## Deferred
