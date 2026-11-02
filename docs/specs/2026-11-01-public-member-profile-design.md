@@ -92,7 +92,7 @@ doc, the same ordering rule as `boardShowcase`, and writes or deletes the projec
 ### Backfill
 
 `reprojectPublicProfiles` is an Admin-only callable (`guardedOnCall`), called by hand by the
-owner like `recomputeAllClaims`. It re-projects every program and project, then every member,
+owner like `recomputeAllClaims`. It re-projects every program, project and existing showcase, then every member,
 and returns `{ ok, showcases, members, failed }`. `ok` is true only when `failed` is empty.
 
 ### Fields on `Member`
@@ -100,7 +100,7 @@ and returns `{ ok, showcases, members, failed }`. `ok` is true only when `failed
 `bio` and `linkedinUrl`, both optional, join the self lane on `/me` only: the member owns
 their public words, so the admin form does not carry them. `memberWriteInvariants` and the create arm keep them off every other lane, so the remedy for
 an abusive one is the Admin takedown. `firestore.rules` caps them (`selfProfileValid`, 180 and 200 characters; the URL pattern is
-anchored to `https://(www.)linkedin.com/in/`), and beacon validates again because the field
+anchored to `https://` and `linkedin.com/in/`, with an optional subdomain of two or three letters), and beacon validates again because the field
 is untrusted input at a public boundary.
 
 ### Spotlight

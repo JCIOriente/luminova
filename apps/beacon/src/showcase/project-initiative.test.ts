@@ -316,6 +316,12 @@ describe("activityProjectionUnchanged", () => {
   });
 });
 
+describe("activityParentRefs on unsafe ids", () => {
+  it("skips an id that could never resolve, which a retrying trigger would redeliver", () => {
+    expect(activityParentRefs({ parentType: "Project", parentId: ".." }, undefined)).toEqual([]);
+  });
+});
+
 describe("rosterMemberIds on malformed data", () => {
   it("does not throw, because a retrying trigger would redeliver it forever", () => {
     const data = { roster: { directorId: "a", coDirectorIds: "nope", teamIds: 7 } };

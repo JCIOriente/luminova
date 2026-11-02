@@ -206,13 +206,13 @@ export function MemberProfileDialog({
     data: member,
     loading,
     error,
-  } = useAsync(
+  } = useAsync<MemberShowcaseItem | null>(
     () =>
       fetchMember(memberId).catch((err: unknown) => {
         console.error("member profile read failed", { memberId, err });
         throw err;
       }),
-    null as MemberShowcaseItem | null,
+    null,
     [memberId, attempt],
   );
   const brief = member ? isBrief(member) : false;

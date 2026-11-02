@@ -29,7 +29,7 @@ export function MemberProfileHost() {
   return (
     <MemberProfileBoundary key={miembro} onClose={close}>
       <Suspense fallback={null}>
-        <MemberProfileDialog key={miembro} memberId={miembro} onClose={close} />
+        <MemberProfileDialog memberId={miembro} onClose={close} />
       </Suspense>
     </MemberProfileBoundary>
   );

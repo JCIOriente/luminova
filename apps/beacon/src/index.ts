@@ -487,6 +487,28 @@ export const reprojectPublicProfiles = guardedOnCall(
         );
       }
     }
+    // The scan above only reaches live finalized initiatives, so a showcase stranded by an older
+    // lost takedown has to be found from this side.
+    const published = await database
+      .collection("showcase")
+      .limit(REPROJECT_SCAN_CAP)
+      .select("kind")
+      .get();
+    truncated ||= published.size === REPROJECT_SCAN_CAP;
+    for (const batch of chunk(published.docs, 10)) {
+      await Promise.all(
+        batch.map(async (doc) => {
+          const kind = doc.get("kind");
+          if (kind !== "Program" && kind !== "Project") return;
+          try {
+            await syncShowcase(database, kind, doc.id);
+          } catch (err) {
+            console.error("showcase reprojection failed", { id: doc.id, err });
+            failed.push(doc.id);
+          }
+        }),
+      );
+    }
     const members = await database.collection("members").limit(REPROJECT_SCAN_CAP).select().get();
     truncated ||= members.size === REPROJECT_SCAN_CAP;
     let synced = 0;

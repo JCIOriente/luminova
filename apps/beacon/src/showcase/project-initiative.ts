@@ -114,13 +114,18 @@ export function activityParentRefs(
     if (!data) continue;
     const kind = data.parentType;
     const id = data.parentId;
-    if ((kind !== "Program" && kind !== "Project") || !isCleanId(id)) continue;
+    if ((kind !== "Program" && kind !== "Project") || !isCleanId(id) || !isSafeDocId(id)) continue;
     const key = `${kind}/${id}`;
     if (seen.has(key)) continue;
     seen.add(key);
     refs.push({ kind, id });
   }
   return refs;
+}
+
+// Not String(): a map holding a non-function toString throws, and this runs in a retrying trigger.
+function asText(v: unknown): string {
+  return typeof v === "string" || typeof v === "number" ? String(v) : "";
 }
 
 function asImpact(v: unknown): InitiativeImpact | null {
@@ -140,8 +145,8 @@ function asImpact(v: unknown): InitiativeImpact | null {
       ? i.custom
           .filter((c) => typeof c === "object" && c !== null)
           .map((c) => ({
-            label: String((c as { label?: unknown }).label ?? ""),
-            value: String((c as { value?: unknown }).value ?? ""),
+            label: asText((c as { label?: unknown }).label),
+            value: asText((c as { value?: unknown }).value),
           }))
       : [],
   };

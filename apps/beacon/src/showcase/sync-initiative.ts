@@ -13,6 +13,10 @@ import {
 // per-initiative activity count, but caps memory/latency on a pathological parent.
 const ACTIVITY_ROLLUP_CAP = 500;
 
+// A showcase past Firestore's 1 MiB doc limit fails on every retry and strands a takedown, and
+// nothing else bounds photos across 500 activities. Far above any real gallery.
+const SHOWCASE_PHOTO_CAP = 1000;
+
 const INITIATIVE_COLLECTIONS: Record<InitiativeKind, string> = {
   Program: "programs",
   Project: "projects",
@@ -73,6 +77,9 @@ export async function syncShowcase(
       kind,
       activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
     );
-    tx.set(showcaseRef, { ...item, photos: [...item.photos, ...activityPhotos] });
+    tx.set(showcaseRef, {
+      ...item,
+      photos: [...item.photos, ...activityPhotos].slice(0, SHOWCASE_PHOTO_CAP),
+    });
   });
 }
