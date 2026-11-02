@@ -144,6 +144,17 @@ describe("toolRows", () => {
       ]);
     });
 
+    it("ignores the integrity hash corepack adds to packageManager", async () => {
+      writeFileSync(
+        join(root, "package.json"),
+        JSON.stringify({
+          engines: { node: ">=24.15.0" },
+          packageManager: "pnpm@11.5.1+sha512.abc",
+        }),
+      );
+      expect(rowFor(await check(), "pnpm")).toMatchObject({ status: "ok", detail: "11.5.1" });
+    });
+
     it("warns, without failing, on a pnpm other than packageManager", async () => {
       responses.set("pnpm --version", "11.4.0\n");
       expect(rowFor(await check(), "pnpm")).toMatchObject({

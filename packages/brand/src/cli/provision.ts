@@ -24,6 +24,7 @@ import { FORK_HINT, forkRepo } from "./github-repo.ts";
 import { runCli } from "./main.ts";
 import { terminalConfirm, type Confirm } from "./prompts.ts";
 import { deployDispatch } from "./push.ts";
+import { formatSections, ok } from "./rows.ts";
 
 const LIFECYCLE_FILE = "brand/bucket-lifecycle.json";
 const CI_CD_DOC = "docs/ci-cd.md";
@@ -455,7 +456,7 @@ export async function printProvisioning({
       where:
         "your shell, signed in to gh as a repo admin; or answer y when this command asks, and it runs these two lines",
       lines: variableLines,
-      check: `gh variable list${ghRepo ? ` --repo ${ghRepo}` : ""}   (or pnpm brand:check, row "CD identity")`,
+      check: `gh variable list${ghRepo ? ` --repo ${ghRepo}` : ""}   (or pnpm brand:check, row "Deploy sign-in")`,
     },
     {
       title: "create the private bucket for your logos and icons",
@@ -505,10 +506,8 @@ if (import.meta.main) {
     }
     const steps = await offerBucket({ profile, confirm });
     if (steps) {
-      for (const { label, done } of steps) {
-        console.log(`brand:provision: ${label}: ${done ? "already done" : "applied"}`);
-      }
-      console.log("brand:provision: bucket ready.");
+      const rows = steps.map(({ label, done }) => ok(label, done ? "already done" : "applied"));
+      console.log(formatSections([{ title: "Brand storage", rows }]));
     }
     console.log(`\n${formatNext(provisionNext({ applied: steps !== null }))}`);
   });

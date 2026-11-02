@@ -102,6 +102,16 @@ describe("loadProfile", () => {
     });
   });
 
+  it("drops the override warning for a caller that means the override", () => {
+    writeProfile("local");
+    const profile = loadProfile({
+      repoRoot: root,
+      env: { BRAND_PROFILE: EXAMPLE_PROFILE, BRAND_PROFILE_INTENDED: "1" },
+    });
+    expect(profile.source).toBe("override");
+    expect(profile.warnings).toEqual([]);
+  });
+
   it("prefers the profile its caller names over the override and brand/", () => {
     const profile = loadProfile({
       repoRoot: root,

@@ -293,15 +293,15 @@ async function confirmReplacing(changed: readonly string[], confirm: Confirm | u
   );
 }
 
-/** What a pull printed: the files it downloaded. */
-function report({ manifest }: PullResult) {
+/** What a pull printed; only CD's log, the audit trail of a deploy, lists each generation. */
+function report({ manifest }: PullResult, { listFiles }: { listFiles: boolean }) {
   const files = Object.entries(manifest.objects).flatMap(([path, record]) =>
     record.source === "bucket" ? [`  ${path}#${record.generation}`] : [],
   );
   console.error(
     `brand:pull: ${files.length} files from ${bucketUrl(manifest.bucket)} into ${localLabel()} (project ${manifest.project}).`,
   );
-  for (const line of files) console.error(line);
+  if (listFiles) for (const line of files) console.error(line);
 }
 
 if (import.meta.main) {
@@ -309,11 +309,11 @@ if (import.meta.main) {
   const projectId = cdProject(process.env);
   if (projectId) {
     await runBrandCommand("brand:pull", async () => {
-      report(await pullProject({ projectId }));
+      report(await pullProject({ projectId }), { listFiles: true });
     });
   } else {
     await runCli("brand:pull", async (profile) => {
-      report(await pull({ profile, confirm: terminalConfirm() }));
+      report(await pull({ profile, confirm: terminalConfirm() }), { listFiles: false });
       console.error(`\n${formatNext(PULL_NEXT)}`);
     });
   }
