@@ -11,6 +11,7 @@
   profile.
 - Spotlight: a lazy modal driven by `?miembro=<id>`, opened from the Directiva and team credits.
 - `/me`: `bio` and `linkedinUrl`, on the member's own lane only.
+- `/privacidad`: section 6 describes public profiles, what they never show and how to opt out.
 
 ## Verification
 
@@ -32,8 +33,6 @@
 
 - `publicProfile: true` was collected for the Directiva. The backfill extends it to the whole
   profile, for non-board members too. The new `/me` copy reaches members only when they open it.
-- The privacy page says membership data is not managed from the public site. Review it now that
-  profiles are public.
 - Owner run after deploy: `reprojectPublicProfiles`.
 - Docs without `publicProfile` (created before 2026-08) stay unpublished until the member opts in
   on `/me`.
