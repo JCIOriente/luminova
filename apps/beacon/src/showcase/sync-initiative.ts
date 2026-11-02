@@ -3,6 +3,7 @@ import type { InitiativeKind, ShowcasePerson } from "@luminova/types/engine";
 import { chunk } from "../chunk.js";
 import {
   activityShowcasePhotos,
+  fitPhotos,
   isProjectable,
   projectInitiative,
   rosterMemberIds,
@@ -12,10 +13,6 @@ import {
 // Defensive bound on the child-activity roll-up query — far above any realistic
 // per-initiative activity count, but caps memory/latency on a pathological parent.
 const ACTIVITY_ROLLUP_CAP = 500;
-
-// A showcase past Firestore's 1 MiB doc limit fails on every retry and strands a takedown, and
-// nothing else bounds photos across 500 activities. Far above any real gallery.
-const SHOWCASE_PHOTO_CAP = 1000;
 
 const INITIATIVE_COLLECTIONS: Record<InitiativeKind, string> = {
   Program: "programs",
@@ -79,7 +76,7 @@ export async function syncShowcase(
     );
     tx.set(showcaseRef, {
       ...item,
-      photos: [...item.photos, ...activityPhotos].slice(0, SHOWCASE_PHOTO_CAP),
+      photos: fitPhotos(item, [...item.photos, ...activityPhotos]),
     });
   });
 }

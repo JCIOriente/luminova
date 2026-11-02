@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "firebase-admin/firestore";
-import type { ShowcasePerson } from "@luminova/types/engine";
+import type { ShowcaseItem, ShowcasePerson } from "@luminova/types/engine";
 import {
   activityParentRefs,
+  fitPhotos,
   activityProjectionUnchanged,
   activityShowcasePhotos,
   projectInitiative,
@@ -313,6 +314,21 @@ describe("activityProjectionUnchanged", () => {
   it("treats create and delete as changed (missing side)", () => {
     expect(activityProjectionUnchanged(undefined, base())).toBe(false);
     expect(activityProjectionUnchanged(base(), undefined)).toBe(false);
+  });
+});
+
+describe("fitPhotos", () => {
+  const item = { title: "A", photos: [] } as unknown as ShowcaseItem;
+  const photo = (id: string, size: number) => ({ id, url: "https://x", caption: "c".repeat(size) });
+
+  it("keeps a normal gallery whole", () => {
+    const photos = [photo("a", 10), photo("b", 10)];
+    expect(fitPhotos(item, photos)).toEqual(photos);
+  });
+
+  it("stops before oversized captions can exceed the doc limit", () => {
+    const kept = fitPhotos(item, [photo("a", 600_000), photo("b", 600_000), photo("c", 10)]);
+    expect(kept.map((p) => p.id)).toEqual(["a"]);
   });
 });
 

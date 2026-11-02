@@ -77,6 +77,22 @@ export function activityShowcasePhotos(
     .flatMap((d) => asPhotos(d.data.photos).map((p) => ({ ...p, id: `${d.id}:${p.id}` })));
 }
 
+// Under Firestore's 1 MiB doc limit, with room for its encoding overhead.
+const SHOWCASE_BYTE_BUDGET = 900_000;
+
+/** The photos that fit in one showcase doc, in order. A doc past the limit fails on every retry
+ *  and strands a takedown, and caption and url are unbounded across 500 activities. */
+export function fitPhotos(item: ShowcaseItem, photos: ShowcasePhoto[]): ShowcasePhoto[] {
+  let bytes = Buffer.byteLength(JSON.stringify({ ...item, photos: [] }));
+  const kept: ShowcasePhoto[] = [];
+  for (const photo of photos) {
+    bytes += Buffer.byteLength(JSON.stringify(photo));
+    if (bytes > SHOWCASE_BYTE_BUDGET) break;
+    kept.push(photo);
+  }
+  return kept;
+}
+
 export interface ShowcaseParentRef {
   kind: InitiativeKind;
   id: string;
