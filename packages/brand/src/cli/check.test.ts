@@ -120,7 +120,7 @@ describe("check", () => {
     );
     expect(rowFor(rows, "profile").detail).toBe(`brand/${CHAPTER}/`);
     expect(rowFor(rows, "CD identity").detail).toBe(
-      "FIREBASE_PROJECT_ID=jci-valle, GCP_PROJECT_NUMBER=123456789012: CD signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com",
+      "deploys to jci-valle and signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com",
     );
     expect(rowFor(rows, "gcloud account").detail).toBe("owner@example.org");
     expect(rowFor(rows, "bucket").detail).toMatch(`all 17 files in gs://${BUCKET}`);
@@ -342,7 +342,7 @@ describe("check", () => {
     responses.set("gh variable get GCP_PROJECT_NUMBER --repo ACME/Luminova", "123456789012\n");
     const row = rowFor(await diagnose(), "CD identity");
     expect(row.detail).toBe(
-      "FIREBASE_PROJECT_ID=jci-valle, GCP_PROJECT_NUMBER=123456789012: CD signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com. Note: could not confirm the letter case of ACME/Luminova with gh (gh repo view ACME/Luminova); CD's keyless sign-in matches owner/name case-sensitively, so write it as GitHub does",
+      "deploys to jci-valle and signs in as firebase-deployer@jci-valle.iam.gserviceaccount.com. Note: could not confirm the letter case of ACME/Luminova with gh (gh repo view ACME/Luminova); CD's keyless sign-in matches owner/name case-sensitively, so write it as GitHub does",
     );
   });
 

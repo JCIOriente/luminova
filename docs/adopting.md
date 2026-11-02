@@ -336,7 +336,7 @@ Java, the Firebase CLI); your chapter (which profile `brand/` selects and why, t
 profile, `brand.toml`, `.firebaserc`); the images; and going live (CD
 identity, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
 row reports even when an earlier one fails. Until step 11 the **bucket** row fails, and
-**CD identity** (your fork's repository variables, read with `gh variable get --repo` on the
+**Deploy sign-in** (your fork's repository variables, read with `gh variable get --repo` on the
 fork `git remote get-url origin` names) warns until step 9, and while `origin` is not your
 fork; it fails when they name another project than `brand.toml`.
 

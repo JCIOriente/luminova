@@ -35,6 +35,9 @@ describe("formatRemedies", () => {
 
   it("prints nothing when there is nothing to fix", () => {
     expect(formatRemedies([])).toBe("");
+    expect(formatRemedies([{ change: "update it" }], "Worth a look:")).toBe(
+      "Worth a look:\n  - update it",
+    );
   });
 });
 
