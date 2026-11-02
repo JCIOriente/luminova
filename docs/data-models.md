@@ -46,11 +46,13 @@ interface Member {
   phone?: string              // optional
   gender?: 'Masculino' | 'Femenino'  // used to pick Position.titleFemale for display
   profession?: string         // optional
+  bio?: string                // member-written public line, 180 chars max. /me lane only
+  linkedinUrl?: string        // https linkedin.com/in/ URL. /me lane only
   joinDate: Timestamp         // membership start date (required)
   birthdate: Timestamp        // required
   status: 'Activo' | 'Inactivo' | 'Desafiliado'  // membership standing (default 'Activo')
   profilePicture: string | null  // Firebase Storage URL or null (uploaded via admin drawer or self on /me)
-  publicProfile?: boolean     // appear on the public Directiva (boardShowcase). Opt-OUT: beacon's
+  publicProfile?: boolean     // appear on the public site (memberShowcase, boardShowcase). Opt-OUT: beacon's
                               // onMemberCreated stamps true at create (clients may not set it —
                               // firestore.rules rejects the key on create). Only the member's own
                               // /me lane may change it; an Admin may additionally force it to false
@@ -237,7 +239,7 @@ hard-coded role checks. `firestore.rules` is the source of truth; summary:
 | `checkIns` | signed-in | `checkIn:Attendance` holders; a Scanner among them is confined to `Attendee` rows unless it also holds `manage:Attendance`; bound to the activity's check-in window | same authority as create (undo); update never |
 | `participations` | signed-in | engine only (`if false`) | never |
 | `memberPoints` | signed-in | engine only (`if false`) | never |
-| `showcase` / `allyShowcase` | public | engine only (`if false`) | never |
+| `showcase` / `allyShowcase` / `boardShowcase` / `memberShowcase` | public | engine only (`if false`) | never |
 | `siteConfig/current` | public | Admin | Admin (`write`) |
 | `board` | public | Admin | never |
 | `*` | deny | deny | deny |

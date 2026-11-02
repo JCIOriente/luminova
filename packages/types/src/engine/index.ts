@@ -17,6 +17,20 @@ export {
 } from "./initiative.js";
 export type { ShowcasePerson, ShowcaseTeam, ShowcasePhoto, ShowcaseItem } from "./showcase.js";
 export {
+  LINKEDIN_PROFILE_PATTERN,
+  MEMBER_BIO_MAX,
+  MEMBER_LINKEDIN_URL_MAX,
+  MEMBER_PROJECT_ROLES,
+  PROFESSION_MAX_LENGTH,
+  isLinkedinProfileUrl,
+} from "./member-public.js";
+export type {
+  MemberCareerEntry,
+  MemberProjectEntry,
+  MemberProjectRole,
+  MemberShowcaseItem,
+} from "./member-public.js";
+export {
   ALLY_CATEGORIES,
   ALLY_CATEGORY_LABELS,
   type AllyCategory,

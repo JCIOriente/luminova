@@ -17,6 +17,10 @@ export interface Member {
   email: string;
   phone?: string;
   profession?: string;
+  /** Member-written line for the public profile, on the self lane only. */
+  bio?: string;
+  /** Public LinkedIn profile, on the self lane only. */
+  linkedinUrl?: string;
   joinDate: Timestamp;
   birthdate: Timestamp;
   status: MemberStatus;

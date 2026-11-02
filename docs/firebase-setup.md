@@ -540,7 +540,7 @@ it in a copy dialog with its expiry.
      Cloud Functions is not an App Check-enforceable product; the `onCall` option is the whole
      control, and firebase-functions applies it itself before the handler runs. The invite pair was first logged live in production on 2026-09-23.
    - **The rest of the deploy list does not enforce.** `setUserRoles`, `seedRoles`,
-     `recomputeAllClaims` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
+     `recomputeAllClaims`, `reprojectPublicProfiles` and `reseedBuiltInRolePerms` are called by hand by the owner with an ID
      token and no App Check token, so enforcing there would lock those calls out.
      `issueMemberInvite` is called only by backstage, which attests. On it, App Check is defence
      in depth: the Admin/permission check is the real gate, and the token-verification debug

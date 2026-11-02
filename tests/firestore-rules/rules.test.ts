@@ -992,6 +992,51 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  describe("public profile fields on create", () => {
+    const payload = {
+      name: "Beto Rojas",
+      email: "b@jci.bo",
+      gender: "Femenino",
+      phone: "",
+      profession: "",
+      status: "Activo",
+      joinDate: Timestamp.fromMillis(0),
+      birthdate: Timestamp.fromMillis(0),
+      positions: {
+        [String(new Date().getUTCFullYear())]: {
+          cargoId: null,
+          comisionIds: [],
+          assignedBy: "u",
+        },
+      },
+      profilePicture: null,
+      totalPoints: 0,
+      active: true,
+      deletedAt: null,
+    };
+
+    it("denies a creator writing a member's bio or LinkedIn", async () => {
+      const ref = doc(as("u", ["Membership"]), "members/new_public_words");
+      await assertFails(setDoc(ref, { ...payload, bio: "Palabras ajenas" }));
+      await assertFails(setDoc(ref, { ...payload, linkedinUrl: "https://linkedin.com/in/otra" }));
+    });
+
+    it("lets only an Admin create a member with the Past President badge", async () => {
+      await assertFails(
+        setDoc(doc(as("u", ["Membership"]), "members/new_badge"), {
+          ...payload,
+          isPastPresident: true,
+        }),
+      );
+      await assertSucceeds(
+        setDoc(doc(as("u", ["Admin"]), "members/new_badge"), {
+          ...payload,
+          isPastPresident: true,
+        }),
+      );
+    });
+  });
+
   it("allows the production create payload shape (mirrors toMemberCreateDoc)", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Membership"]), "members/new_prod_shape"), {
@@ -1491,6 +1536,45 @@ describe("firestore.rules — members", () => {
     },
   );
   // The cap the Zod schema mirrors (packages/types/src/member-schema.ts).
+  it("allows a bio at the 180-character cap and denies 181", async () => {
+    await assertSucceeds(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { bio: "a".repeat(180) }),
+    );
+    await assertFails(
+      updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { bio: "a".repeat(181) }),
+    );
+  });
+
+  it("allows a LinkedIn profile URL or a blank, and denies any other URL", async () => {
+    const ref = doc(as("owner-uid", ["Member"]), "members/m1");
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "https://www.linkedin.com/in/ana-rojas" }));
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "https://bo.linkedin.com/in/ana-rojas" }));
+    await assertSucceeds(updateDoc(ref, { linkedinUrl: "" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://evil.example/in/ana" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "javascript:alert(1)" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "http://linkedin.com/in/ana" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com.evil.example/in/a" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com@evil.example/in/a" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/a?x=1" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/a\n" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: 42 }));
+  });
+
+  it("keeps a member's public words off the institutional lane", async () => {
+    const ref = doc(as("u", ["Membership"]), "members/m1");
+    await assertFails(updateDoc(ref, { bio: "Palabras ajenas" }));
+    await assertFails(updateDoc(ref, { linkedinUrl: "https://linkedin.com/in/otra" }));
+  });
+
+  it("lets only an Admin set the public Past President badge", async () => {
+    await assertFails(
+      updateDoc(doc(as("u", ["Membership"]), "members/m1"), { isPastPresident: true }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as("u", ["Admin"]), "members/m1"), { isPastPresident: true }),
+    );
+  });
+
   it("allows a profession at the 80-character cap and denies 81", async () => {
     await assertSucceeds(
       updateDoc(doc(as("owner-uid", ["Member"]), "members/m1"), { profession: "a".repeat(80) }),
@@ -2977,6 +3061,21 @@ describe("boardShowcase (public read, beacon-only write)", () => {
   });
   it("denies Admin write (beacon admin SDK only)", async () => {
     await assertFails(setDoc(doc(as("u", ["Admin"]), "boardShowcase/b2"), { name: "x" }));
+  });
+});
+
+describe("memberShowcase (public read, beacon-only write)", () => {
+  it("allows anonymous read", async () => {
+    await assertSucceeds(getDoc(doc(anon(), "memberShowcase/m1")));
+  });
+  it("denies listing the whole roster", async () => {
+    await assertFails(getDocs(collection(anon(), "memberShowcase")));
+  });
+  it("denies anonymous write", async () => {
+    await assertFails(setDoc(doc(anon(), "memberShowcase/m2"), { name: "x" }));
+  });
+  it("denies Admin write (beacon admin SDK only)", async () => {
+    await assertFails(setDoc(doc(as("u", ["Admin"]), "memberShowcase/m2"), { name: "x" }));
   });
 });
 
@@ -4692,6 +4791,7 @@ describe("hard-delete denial — every collection the rules forbid client-deleti
     { name: "showcase", path: "showcase/s1" },
     { name: "allyShowcase", path: "allyShowcase/a1" },
     { name: "boardShowcase", path: "boardShowcase/b1" },
+    { name: "memberShowcase", path: "memberShowcase/m1" },
     { name: "memberInvites", path: "memberInvites/h1" },
   ];
 

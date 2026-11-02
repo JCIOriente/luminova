@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TeamCredits } from "./team-credits";
+import { renderWithRouter } from "../../test/showcase";
 
 describe("TeamCredits", () => {
+  it("links a credit with an id to the member's profile, and leaves a legacy credit as text", async () => {
+    renderWithRouter(
+      <TeamCredits
+        team={{
+          director: { id: "m1", name: "Ana", photoUrl: null },
+          coDirectors: [],
+          members: [{ name: "Caro", photoUrl: null }],
+        }}
+      />,
+    );
+    const link = await screen.findByRole("link", { name: "Ver perfil de Ana" });
+    expect(link.getAttribute("href")).toContain("miembro=m1");
+    expect(screen.queryByRole("link", { name: "Ver perfil de Caro" })).not.toBeInTheDocument();
+    expect(screen.getByText("Caro")).toBeInTheDocument();
+  });
+
   it("renders director, co-directors and members by name", () => {
     render(
       <TeamCredits

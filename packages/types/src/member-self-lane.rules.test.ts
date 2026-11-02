@@ -5,8 +5,14 @@ import {
   parseSelfProfileLane,
   parseMemberNameGate,
 } from "../../../tools/scripts/lib/rules-locked-fields.mjs";
-import { selfProfileSchema, PROFESSION_MAX_LENGTH } from "./member-schema.js";
+import { selfProfileSchema } from "./member-schema.js";
 import { BOLIVIA_PHONE_PATTERN } from "./phone.js";
+import {
+  LINKEDIN_PROFILE_PATTERN,
+  MEMBER_BIO_MAX,
+  MEMBER_LINKEDIN_URL_MAX,
+  PROFESSION_MAX_LENGTH,
+} from "./engine/member-public.js";
 import {
   MEMBER_NAME_MAX_LENGTH,
   MEMBER_NAME_MIN_LENGTH,
@@ -38,6 +44,15 @@ describe("firestore.rules members self lane is in sync with selfProfileSchema", 
 
   it("bounds profession at the same length the schema does", () => {
     expect(LANE.professionMax).toBe(PROFESSION_MAX_LENGTH);
+  });
+
+  it("bounds the public profile fields at the same lengths the schema does", () => {
+    expect(RULES).toContain(`d.get('bio', '').size() <= ${MEMBER_BIO_MAX}`);
+    expect(RULES).toContain(`d.get('linkedinUrl', '').size() <= ${MEMBER_LINKEDIN_URL_MAX}`);
+  });
+
+  it("matches the LinkedIn URL against the byte-identical pattern the schema does", () => {
+    expect(RULES).toContain(`'').matches('${LINKEDIN_PROFILE_PATTERN}')`);
   });
 
   it("matches the phone against the byte-identical pattern the schema does", () => {
