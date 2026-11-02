@@ -11,8 +11,10 @@
 # each is fragile. One-at-a-time is simpler and fully removes the race. The rules
 # suites are fast, so the serialization cost is negligible.
 #
-# The lock is an atomically-created directory ($LOCK); the holder's PID lives in
-# $LOCK/pid for liveness checks. Portable (no flock — absent on macOS).
+# The lock is a file ($LOCK) holding the holder's PID for liveness checks, created
+# by bash itself: noclobber creates a new file with O_EXCL, so one contender wins. Do
+# not use `mkdir` for this: uutils mkdir (the default on Ubuntu 26.04, 0.10.0) stats first
+# and lets two concurrent callers both exit 0. Portable (no flock — absent on macOS).
 #
 # Not handled by design: PID reuse (a recycled PID reads as "alive" so a crashed
 # holder isn't reclaimed until the timeout). Astronomically unlikely in a 5-min
@@ -26,56 +28,60 @@ set -uo pipefail
 
 # Namespace the default path per-uid so a co-tenant on a shared runner can't
 # pre-create (and thus DoS or block reclaim of) another user's lock in /tmp.
-LOCK="${EMULATOR_LOCK_DIR:-${TMPDIR:-/tmp}/luminova-emulator-$(id -u).lock}"
+LOCK="${EMULATOR_LOCK_FILE:-${TMPDIR:-/tmp}/luminova-emulator-$(id -u).lock}"
 TIMEOUT="${EMULATOR_LOCK_TIMEOUT:-300}"
+
+create_exclusive() { (set -C; echo $$ > "$1") 2>/dev/null; }
+# $LOCK/pid is a live or dead holder of the old mkdir format, from a worktree not yet on
+# this version. Its PID has to count, or a waiter here would reap a running lock.
+read_holder() { cat "$LOCK" "$LOCK/pid" 2>/dev/null; }
 
 acquired=""
 release() { [ -n "$acquired" ] && rm -rf "$LOCK" 2>/dev/null; return 0; }
 
 waited=0
 while :; do
-  if mkdir "$LOCK" 2>/dev/null; then
+  if create_exclusive "$LOCK"; then
     acquired=1
-    # Install cleanup the instant we own the dir — before the pid write or any
-    # other step can fail — so a death here can't leak the lock. Forward INT/TERM
-    # (bash does NOT run the EXIT trap on an untrapped SIGTERM) so a cancelled CI
-    # job releases the lock and still reports the right termination status.
+    # Install cleanup the instant we own the lock, so a death here can't leak it.
+    # Forward INT/TERM (bash does NOT run the EXIT trap on an untrapped SIGTERM)
+    # so a cancelled CI job releases the lock and still reports the right
+    # termination status.
     trap 'release' EXIT
     trap 'release; trap - INT;  kill -INT  $$' INT
     trap 'release; trap - TERM; kill -TERM $$' TERM
-    echo $$ > "$LOCK/pid"
     break
   fi
 
   # Acquire failed. Decide whether the holder is stale and, if so, reclaim it.
-  # Serialize reclaim with a second dir so two waiters can't both rm the lock and
+  # Serialize reclaim with a second file so two waiters can't both rm the lock and
   # then both re-acquire (a TOCTOU double-acquire), and RE-VERIFY liveness under
   # that reclaim lock so a holder that became live meanwhile is never reaped.
-  if mkdir "$LOCK.reap" 2>/dev/null; then
-    holder=$(cat "$LOCK/pid" 2>/dev/null)
+  if create_exclusive "$LOCK.reap"; then
+    holder=$(read_holder)
     stale=""
     if [ -n "$holder" ]; then
       kill -0 "$holder" 2>/dev/null || stale=1
     else
-      # No pid file: either the lock was just released, or the holder died in the
-      # tiny mkdir→pid window. A healthy holder writes pid within milliseconds,
-      # so if it is still absent after a beat, treat the lock as abandoned.
+      # No pid: either the lock was just released, or the holder died between the
+      # create and the write. A healthy holder writes within milliseconds, so if
+      # it is still unreadable after a beat, treat the lock as abandoned.
       sleep 1
-      [ -e "$LOCK" ] && [ ! -f "$LOCK/pid" ] && stale=1
+      [ -e "$LOCK" ] && [ -z "$(read_holder)" ] && stale=1
     fi
     [ -n "$stale" ] && rm -rf "$LOCK" 2>/dev/null
-    rmdir "$LOCK.reap" 2>/dev/null || true
+    rm -f "$LOCK.reap"
     [ -n "$stale" ] && continue
   fi
 
   if [ "$waited" -ge "$TIMEOUT" ]; then
     # Self-heal a wedge: a reaper SIGKILL'd while holding $LOCK.reap leaves it
-    # orphaned (its only cleanup is the rmdir above; no trap survives SIGKILL),
-    # so reclaim can never run even though the holder is dead. Clear both dirs
+    # orphaned (its only cleanup is the rm above; no trap survives SIGKILL),
+    # so reclaim can never run even though the holder is dead. Clear both files
     # once and retry — but ONLY when the holder is genuinely dead/absent. A LIVE
     # holder that legitimately ran past TIMEOUT must still time out; stealing its
     # lock would double-acquire.
-    h=$(cat "$LOCK/pid" 2>/dev/null)
+    h=$(read_holder)
     if [ -z "${retried:-}" ] && { [ -z "$h" ] || ! kill -0 "$h" 2>/dev/null; }; then
       retried=1
       rm -rf "$LOCK" "$LOCK.reap" 2>/dev/null

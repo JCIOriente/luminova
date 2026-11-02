@@ -69,6 +69,16 @@ The `main` branch ruleset requires **both** checks and is `enforcement: active`
 (a ruleset can silently sit at `disabled` and gate nothing — verify `active`, not just
 that checks are listed).
 
+### Runner image
+
+Every job in `ci.yml` and `deploy.yml` names `ubuntu-26.04`, not `ubuntu-latest`, so the OS
+under a production deploy changes only through a reviewed PR. To move to a new image, change
+all of them in one PR so CI proves the image the deploy will use.
+
+Ubuntu 26.04 ships uutils coreutils. Its `mkdir` (0.10.0) is not exclusive: two simultaneous
+callers can both exit 0, so a script must not use `mkdir` as a lock. Use bash `noclobber`, as
+`tools/scripts/with-emulator-lock.sh` does.
+
 ---
 
 ## 3. CD (`deploy.yml`)
@@ -559,10 +569,11 @@ Not built yet; revisit when a second developer joins or infra grows:
 
 | Action | SHA | Version |
 |--------|-----|---------|
-| actions/checkout | `34e114876b0b11c390a56381ad16ebd13914f8d5` | v4.3.1 |
-| actions/setup-node | `49933ea5288caeca8642d1e84afbd3f7d6820020` | v4.4.0 |
-| actions/cache | `0057852bfaa89a56745cba8c7296529d2fc39830` | v4.3.0 |
-| actions/setup-java | `c1e323688fd81a25caa38c78aa6df2d33d3e20d9` | v4.8.0 |
+| actions/checkout | `3d3c42e5aac5ba805825da76410c181273ba90b1` | v7.0.1 |
+| actions/setup-node | `949feb2413d6458794dcd2491c4babbbce0c15c1` | v7.1.0 |
+| actions/cache | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | v6.1.0 |
+| actions/setup-java | `b843ebf9b913146b38da2eaa7aeddf76074ae1ad` | v6.1.0 |
 | google-github-actions/auth | `7c6bc770dae815cd3e89ee6cdf493a5fab2cc093` | v3.0.0 |
+| google-github-actions/setup-gcloud | `aa5489c8933f4cc7a4f7d45035b3b1440c9c10db` | v3.0.1 |
 
 firebase-tools pinned `15.22.1` (matches CI).
