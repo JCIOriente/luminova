@@ -196,7 +196,7 @@ describe("printProvisioning", () => {
   it("prints the provider's attribute condition, pinned to the fork and its main branch", async () => {
     const text = await printProvisioning({ profile, run: fakeRunner() });
     expect(text).toContain(
-      "only acme/luminova's deploy.yml on main gets a token: assertion.repository == 'acme/luminova' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'acme/luminova/.github/workflows/deploy.yml@refs/heads/main'",
+      "only acme/luminova's deploy.yml on main gets a token: assertion.repository == 'acme/luminova' && assertion.repository_id == '${GH_REPO_ID}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == 'acme/luminova/.github/workflows/deploy.yml@refs/heads/main'",
     );
     expect(text).toContain(
       `gcloud iam workload-identity-pools providers describe ${PROVIDER_ID} --project=jci-valle --location=global --workload-identity-pool=${POOL_ID} --format='value(attributeCondition)'`,
@@ -255,7 +255,10 @@ describe("provisioningSection", () => {
 
   it("pins the provider's attribute condition to the fork's repository and main", () => {
     const block = provisioningSection(readFileSync(join(REPO_ROOT, "docs/ci-cd.md"), "utf8"));
-    expect(block).toContain(`--attribute-condition="${attributeCondition("${GH_REPO}")}"`);
+    expect(block).toContain(
+      `--attribute-condition="${attributeCondition("${GH_REPO}", "${GH_REPO_ID}")}"`,
+    );
+    expect(block).toContain('export GH_REPO_ID=$(gh api "repos/${GH_REPO}" --jq .id)');
   });
 
   it("finds the section 6 block in the real docs/ci-cd.md and its four exports", () => {

@@ -435,7 +435,7 @@ export async function printProvisioning({
       : `# FILL IN, then run: gh variable set ${PROJECT_NUMBER_VARIABLE} --body ${projectNumber ?? "<project number>"} --repo ${fork}   (${NUMBER_HINT(projectId)})`,
   ];
   const repoLabel = ghRepo ?? "your fork";
-  const condition = attributeCondition(ghRepo ?? "<owner>/<repo>");
+  const condition = attributeCondition(ghRepo ?? "<owner>/<repo>", "${GH_REPO_ID}");
 
   const steps: GuideStep[] = [
     {

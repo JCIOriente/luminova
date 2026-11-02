@@ -353,7 +353,8 @@ gcloud services enable \
 gcloud iam service-accounts create "$DEPLOY_SA" \
   --display-name="GitHub Actions deployer (keyless)"
 
-# part 3: WIF pool + provider (pinned to the repo, main AND deploy.yml)
+# part 3: WIF pool + provider (pinned to the repo and its id, main AND deploy.yml)
+export GH_REPO_ID=$(gh api "repos/${GH_REPO}" --jq .id)
 gcloud iam workload-identity-pools create "$POOL_ID" \
   --location="global" --display-name="GitHub Actions pool"
 export POOL_NAME=$(gcloud iam workload-identity-pools describe "$POOL_ID" \
@@ -363,7 +364,7 @@ gcloud iam workload-identity-pools providers create-oidc "$PROVIDER_ID" \
   --display-name="GitHub OIDC" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref" \
-  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${GH_REPO}/.github/workflows/deploy.yml@refs/heads/main'"
+  --attribute-condition="assertion.repository == '${GH_REPO}' && assertion.repository_id == '${GH_REPO_ID}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '${GH_REPO}/.github/workflows/deploy.yml@refs/heads/main'"
 
 # part 4: bind pool -> SA
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA_EMAIL" \
@@ -396,6 +397,16 @@ gh api -X PUT "repos/${GH_REPO}/environments/production" --input - <<< \
   "{\"wait_timer\":0,\"reviewers\":[{\"type\":\"User\",\"id\":${REVIEWER_ID}}],\"deployment_branch_policy\":{\"protected_branches\":false,\"custom_branch_policies\":true}}"
 gh api -X POST "repos/${GH_REPO}/environments/production/deployment-branch-policies" \
   --input - <<< '{"name":"main","type":"branch"}'
+```
+
+**Optional owner step: add the repository id.** A provider created by section 6 also pins
+GitHub's id for the repository, so a repository recreated under a freed name cannot sign
+in. A provider from before that lacks it; the project owner may add it (Claude never runs
+it). Keep the condition the provider has now, adding the `repository_id` clause:
+
+```bash
+export GH_REPO_ID=$(gh api "repos/<owner>/<repo>" --jq .id)
+gcloud iam workload-identity-pools providers update-oidc github-oidc --project=<project id> --location=global --workload-identity-pool=github-actions --attribute-condition="assertion.repository == '<owner>/<repo>' && assertion.repository_id == '${GH_REPO_ID}' && assertion.ref == 'refs/heads/main' && assertion.workflow_ref == '<owner>/<repo>/.github/workflows/deploy.yml@refs/heads/main'"
 ```
 
 Then the two repository variables CD reads (`pnpm brand:provision` step 2 prints these
