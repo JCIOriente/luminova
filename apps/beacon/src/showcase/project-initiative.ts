@@ -12,15 +12,23 @@ import { isDeepStrictEqual } from "node:util";
 import { isCleanId } from "../award-points/ids.js";
 import { hasToMillis } from "../firestore-util.js";
 
+// Admin-written, so the shape is not guaranteed, and a retrying trigger runs on this: a throw
+// on malformed data would redeliver until the event expires.
 function parseRoster(data: Record<string, unknown>): {
   directorId?: string;
-  coDirectorIds?: string[];
-  teamIds?: string[];
+  coDirectorIds: string[];
+  teamIds: string[];
 } {
-  return (data.roster ?? {}) as {
+  const roster = (data.roster ?? {}) as {
     directorId?: string;
-    coDirectorIds?: string[];
-    teamIds?: string[];
+    coDirectorIds?: unknown;
+    teamIds?: unknown;
+  };
+  const list = (v: unknown): string[] => (Array.isArray(v) ? v : []);
+  return {
+    directorId: roster.directorId,
+    coDirectorIds: list(roster.coDirectorIds),
+    teamIds: list(roster.teamIds),
   };
 }
 
@@ -205,10 +213,10 @@ export function projectInitiative(
     memberIds: [...new Set(rosterMemberIds(data))].filter((mid) => resolve(mid) !== null),
     team: {
       director: roster.directorId ? resolve(roster.directorId) : null,
-      coDirectors: (roster.coDirectorIds ?? [])
+      coDirectors: roster.coDirectorIds
         .map((cid) => resolve(cid))
         .filter((p): p is ShowcasePerson => p !== null),
-      members: (roster.teamIds ?? [])
+      members: roster.teamIds
         .map((tid) => resolve(tid))
         .filter((p): p is ShowcasePerson => p !== null),
     },
@@ -218,11 +226,9 @@ export function projectInitiative(
 /** All roster ids that need name resolution (director + co-directors + team). */
 export function rosterMemberIds(data: Record<string, unknown>): string[] {
   const r = parseRoster(data);
-  return [
-    ...(r.directorId ? [r.directorId] : []),
-    ...(r.coDirectorIds ?? []),
-    ...(r.teamIds ?? []),
-  ].filter(isCleanId);
+  return [...(r.directorId ? [r.directorId] : []), ...r.coDirectorIds, ...r.teamIds].filter(
+    isCleanId,
+  );
 }
 
 // The showcase fields a memberShowcase entry copies. `photos` churns on every gallery edit

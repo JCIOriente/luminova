@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { MemberProfileBoundary } from "./member-profile-boundary";
 
 const MemberProfileDialog = lazy(() =>
   import("./member-profile-dialog").then((m) => ({ default: m.MemberProfileDialog })),
@@ -9,20 +10,18 @@ export function MemberProfileHost() {
   const { miembro } = useSearch({ strict: false });
   const navigate = useNavigate();
   if (!miembro) return null;
+  const close = () =>
+    void navigate({
+      to: ".",
+      search: (prev) => ({ ...prev, miembro: undefined }),
+      resetScroll: false,
+      replace: true,
+    });
   return (
-    <Suspense fallback={null}>
-      <MemberProfileDialog
-        key={miembro}
-        memberId={miembro}
-        onClose={() =>
-          void navigate({
-            to: ".",
-            search: (prev) => ({ ...prev, miembro: undefined }),
-            resetScroll: false,
-            replace: true,
-          })
-        }
-      />
-    </Suspense>
+    <MemberProfileBoundary key={miembro} onClose={close}>
+      <Suspense fallback={null}>
+        <MemberProfileDialog key={miembro} memberId={miembro} onClose={close} />
+      </Suspense>
+    </MemberProfileBoundary>
   );
 }

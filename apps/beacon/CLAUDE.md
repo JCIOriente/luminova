@@ -19,7 +19,11 @@ Check-ins are written by any `checkIn:Attendance` holder; a Scanner is confined 
 
 ### `onProgramWritten` / `onProjectWritten` — `initiativeTrigger(...)`
 
-When `finalReport` transitions null↔set, flip that initiative's participation rows provisional↔confirmed and recompute affected members' aggregates; also projects the showcase.
+When `finalReport` transitions null↔set, flip that initiative's participation rows provisional↔confirmed and recompute affected members' aggregates.
+
+### `onProgramShowcaseWritten` / `onProjectShowcaseWritten` — `initiativeShowcaseTrigger(...)`
+
+Project the showcase through `syncShowcase`, which decides from the live initiative in a transaction. `retry: true` and rethrow: the delete branch is the public takedown. Parsing must stay no-throw on malformed data, or a bad doc redelivers until the event expires.
 
 ## Invite callables
 

@@ -316,6 +316,14 @@ describe("activityProjectionUnchanged", () => {
   });
 });
 
+describe("rosterMemberIds on malformed data", () => {
+  it("does not throw, because a retrying trigger would redeliver it forever", () => {
+    const data = { roster: { directorId: "a", coDirectorIds: "nope", teamIds: 7 } };
+    expect(rosterMemberIds(data)).toEqual(["a"]);
+    expect(rosterMemberIds({ roster: "nope" })).toEqual([]);
+  });
+});
+
 describe("profileIdsToSync", () => {
   const doc = { title: "A", memberIds: ["a", "b"], team: { director: { id: "a" } }, photos: [] };
 

@@ -5,6 +5,8 @@
 - `memberShowcase/{memberId}`: a beacon-written, get-only public projection of a member's
   career and projects, gated by the same consent as the board, without the cargo and photo gates.
 - `onShowcaseWritten`: a retrying trigger that keeps project lists current.
+- `onProgramShowcaseWritten` / `onProjectShowcaseWritten`: retrying triggers that project
+  `showcase` from the live initiative, so a failed takedown is redelivered.
 - `reprojectPublicProfiles`: an Admin callable that backfills `showcase` member ids and every
   profile.
 - Spotlight: a lazy modal driven by `?miembro=<id>`, opened from the Directiva and team credits.
@@ -32,8 +34,5 @@
 - Docs without `publicProfile` (created before 2026-08) stay unpublished until the member opts in
   on `/me`.
 - No backstage form sets `isPastPresident` or `terms.bestMemberId`.
-- `initiativeTrigger` has no retry and projects from `after.data()`, so a failed `showcase`
-  delete is lost. This predates the feature.
-- A failed lazy import of the dialog has no error boundary.
 - `showcase.memberIds` and `ShowcasePerson.id` are public, and the member id is also the QR
   check-in payload. A forged QR still needs a Scanner and an open check-in.

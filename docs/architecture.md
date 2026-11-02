@@ -83,8 +83,9 @@ within the same project and share one Firestore database and one Storage bucket
 ### beacon (Cloud Functions)
 - Node.js 24 Firebase Cloud Functions (runtime: `nodejs24`, functions codebase `beacon`)
 - Firestore triggers: `awardPoints` (`checkIns/{id}` — the Recognition Engine),
-  `onProgramWritten` / `onProjectWritten` (roster → participation reconciliation +
-  `showcase` projection), `onActivityWritten` (photo roll-up into the showcase),
+  `onProgramWritten` / `onProjectWritten` (roster → participation reconciliation),
+  `onProgramShowcaseWritten` / `onProjectShowcaseWritten` (`showcase` projection),
+  `onActivityWritten` (photo roll-up into the showcase),
   `onMemberWritten` (custom-claims sync: roles + perms), `onRoleWritten` (role-definition
   claims re-sync), `onAllyWritten` (`allyShowcase` public projection),
   `onMemberCreated` (stamps the `publicProfile` opt-out default — clients may not set it),

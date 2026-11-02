@@ -16,13 +16,10 @@ import {
 import {
   activityParentRefs,
   activityProjectionUnchanged,
-  activityShowcasePhotos,
   isProjectable,
-  projectInitiative,
   profileIdsToSync,
-  rosterMemberIds,
-  showcasePerson,
 } from "./showcase/project-initiative.js";
+import { syncShowcase } from "./showcase/sync-initiative.js";
 import { projectAlly } from "./showcase/project-ally.js";
 import {
   projectBoard,
@@ -39,7 +36,6 @@ import {
   needsPublicProfileDefault,
   PUBLIC_PROFILE_DEFAULT,
 } from "./showcase/default-public-profile.js";
-import type { ShowcasePerson } from "@luminova/types/engine";
 import { firestoreClaimsDeps, logError } from "./claims-sync/firestore-deps.js";
 import { syncMemberClaims } from "./claims-sync/sync.js";
 import { roleClaimsChanged } from "./claims-sync/role-change.js";
@@ -57,55 +53,6 @@ if (!getApps().length) initializeApp();
 
 function db() {
   return getFirestore();
-}
-
-async function resolveMembers(
-  database: Firestore,
-  ids: string[],
-): Promise<Map<string, ShowcasePerson>> {
-  const unique = [...new Set(ids)].filter((id) => id.length > 0);
-  const people = new Map<string, ShowcasePerson>();
-  for (const batch of chunk(unique, 300)) {
-    const refs = batch.map((id) => database.doc(`members/${id}`));
-    const snaps = await database.getAll(...refs);
-    for (const snap of snaps) {
-      const p = showcasePerson(snap.get("name"), snap.get("profilePicture"));
-      if (p) people.set(snap.id, { ...p, id: snap.id });
-    }
-  }
-  return people;
-}
-
-// Defensive bound on the child-activity roll-up query — far above any realistic
-// per-initiative activity count, but caps memory/latency on a pathological parent.
-const ACTIVITY_ROLLUP_CAP = 500;
-
-async function projectShowcase(
-  database: Firestore,
-  kind: "Program" | "Project",
-  id: string,
-  data: Record<string, unknown> | undefined,
-): Promise<void> {
-  const ref = database.doc(`showcase/${id}`);
-  if (!data || !isProjectable(data)) {
-    await ref.delete();
-    return;
-  }
-  // Independent reads — resolve names and fetch child activities concurrently.
-  const [members, activitySnap] = await Promise.all([
-    resolveMembers(database, rosterMemberIds(data)),
-    database.collection("activities").where("parentId", "==", id).limit(ACTIVITY_ROLLUP_CAP).get(),
-  ]);
-  const item = projectInitiative(kind, id, data, (mid) => members.get(mid) ?? null);
-  if (!item) {
-    await ref.delete();
-    return;
-  }
-  const activityPhotos = activityShowcasePhotos(
-    kind,
-    activitySnap.docs.map((d) => ({ id: d.id, data: d.data() })),
-  );
-  await ref.set({ ...item, photos: [...item.photos, ...activityPhotos] });
 }
 
 // retry: true — a transient failure here MUST redeliver: the hasCheckIns mirror
@@ -152,8 +99,7 @@ export const awardPoints = onDocumentWritten(
 function initiativeTrigger(collection: "programs" | "projects") {
   const parentType = collection === "programs" ? "Program" : "Project";
   return onDocumentWritten(`${collection}/{id}`, async (event) => {
-    const database = db();
-    const store = createFirestoreStore(database);
+    const store = createFirestoreStore(db());
     const after = event.data?.after;
     if (after?.exists) {
       const init = parseInitiativeWrite(after.data());
@@ -162,17 +108,6 @@ function initiativeTrigger(collection: "programs" | "projects") {
       // roster row's fallback month doesn't drift between the first run and a retry.
       const stamp = after.createTime ?? Timestamp.now();
       await processInitiativeWrite(store, parentType, event.params.id, init, stamp);
-      // Projection runs after engine work so a showcase error never pre-empts points.
-      try {
-        await projectShowcase(
-          database,
-          parentType,
-          event.params.id,
-          after.data() as Record<string, unknown>,
-        );
-      } catch (err) {
-        console.error("showcase projection failed", { id: event.params.id, err });
-      }
       return;
     }
     // Initiative deleted — reconcile to an empty roster so its rows are voided.
@@ -192,17 +127,37 @@ function initiativeTrigger(collection: "programs" | "projects") {
         },
         before.createTime ?? Timestamp.now(),
       );
-      try {
-        await projectShowcase(database, parentType, event.params.id, undefined);
-      } catch (err) {
-        console.error("showcase projection failed", { id: event.params.id, err });
-      }
     }
   });
 }
 
 export const onProgramWritten = initiativeTrigger("programs");
 export const onProjectWritten = initiativeTrigger("projects");
+
+// Its own trigger, not a step of initiativeTrigger, so a failed takedown is redelivered without
+// re-running the points engine. retry:true + rethrow: the delete branch is how an un-finalized
+// or deleted initiative leaves the public site, and a swallowed failure there leaves it up with
+// only a log line. No malformed input can fail permanently, so there is no retry storm to guard
+// against: projectInitiative and rosterMemberIds are no-throw on bad data. syncShowcase decides
+// from the live doc, so a late redelivery cannot republish anything.
+function initiativeShowcaseTrigger(collection: "programs" | "projects") {
+  const kind = collection === "programs" ? "Program" : "Project";
+  return onDocumentWritten({ document: `${collection}/{id}`, retry: true }, async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    // Drafts are most initiative writes. Neither side public means no showcase to touch.
+    if (![before, after].some((side) => side !== undefined && isProjectable(side))) return;
+    try {
+      await syncShowcase(db(), kind, event.params.id);
+    } catch (err) {
+      console.error("showcase projection failed", { id: event.params.id, err });
+      throw err;
+    }
+  });
+}
+
+export const onProgramShowcaseWritten = initiativeShowcaseTrigger("programs");
+export const onProjectShowcaseWritten = initiativeShowcaseTrigger("projects");
 
 export const onActivityWritten = onDocumentWritten("activities/{id}", async (event) => {
   const database = db();
@@ -225,12 +180,7 @@ export const onActivityWritten = onDocumentWritten("activities/{id}", async (eve
         // here would clobber a doc this trigger doesn't own (the initiative's own
         // delete-trigger handles showcase cleanup on real deletion).
         if (!snap.exists) return;
-        await projectShowcase(
-          database,
-          parent.kind,
-          parent.id,
-          snap.data() as Record<string, unknown>,
-        );
+        await syncShowcase(database, parent.kind, parent.id);
       } catch (err) {
         console.error("showcase projection failed", { id: parent.id, err });
       }
@@ -522,10 +472,7 @@ export const reprojectPublicProfiles = guardedOnCall(
         await Promise.all(
           batch.map(async (doc) => {
             try {
-              // The scan can be minutes old: projecting from it could republish an initiative
-              // that was un-finalized meanwhile, with no later trigger to correct it.
-              const live = await doc.ref.get();
-              await projectShowcase(database, kind, doc.id, live.data());
+              await syncShowcase(database, kind, doc.id);
               showcases += 1;
             } catch (err) {
               console.error("showcase reprojection failed", { id: doc.id, err });

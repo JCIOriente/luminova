@@ -80,7 +80,11 @@ doc, the same ordering rule as `boardShowcase`, and writes or deletes the projec
   a lost takedown.
 - **Showcase writes:** `onShowcaseWritten` (`retry: true`) syncs each member on either side
   of a write to a field a profile copies, so a removal also drops the project from that
-  profile. It is its own trigger because the initiative triggers have no retry.
+  profile.
+- **Initiative writes:** `onProgramShowcaseWritten` and `onProjectShowcaseWritten`
+  (`retry: true`) project `showcase` through `syncShowcase`, which reads the live initiative in
+  a transaction, so a failed takedown is redelivered and a late event cannot republish. They
+  are separate from `initiativeTrigger` so a retry never re-runs the points engine.
 - **Bounds:** at most 100 projects per member and 40 terms.
 - **Known gap:** a cargo title edit in `positions/` does not re-project holders, as with
   `boardShowcase`. `career` keeps every term, so the UTC-year rollover needs no fix here.
@@ -105,6 +109,7 @@ is untrusted input at a public boundary.
   back-button dismissal works. It is validated as a safe id before any read.
 - The modal is lazy-loaded, reads one document through the lite SDK and handles loading,
   error and absent.
+- A chunk that will not load is caught by `MemberProfileBoundary`, which offers a reload.
 - It uses the `Dialog` from `@luminova/ui`. Visuals follow the "Perfil público de miembro"
   design canvas: panel + sheet on desktop, compact header on phones, a shorter card for a
   member with little history.
