@@ -992,6 +992,51 @@ describe("firestore.rules — members", () => {
       }),
     );
   });
+  describe("public profile fields on create", () => {
+    const payload = {
+      name: "Beto Rojas",
+      email: "b@jci.bo",
+      gender: "Femenino",
+      phone: "",
+      profession: "",
+      status: "Activo",
+      joinDate: Timestamp.fromMillis(0),
+      birthdate: Timestamp.fromMillis(0),
+      positions: {
+        [String(new Date().getUTCFullYear())]: {
+          cargoId: null,
+          comisionIds: [],
+          assignedBy: "u",
+        },
+      },
+      profilePicture: null,
+      totalPoints: 0,
+      active: true,
+      deletedAt: null,
+    };
+
+    it("denies a creator writing a member's bio or LinkedIn", async () => {
+      const ref = doc(as("u", ["Membership"]), "members/new_public_words");
+      await assertFails(setDoc(ref, { ...payload, bio: "Palabras ajenas" }));
+      await assertFails(setDoc(ref, { ...payload, linkedinUrl: "https://linkedin.com/in/otra" }));
+    });
+
+    it("lets only an Admin create a member with the Past President badge", async () => {
+      await assertFails(
+        setDoc(doc(as("u", ["Membership"]), "members/new_badge"), {
+          ...payload,
+          isPastPresident: true,
+        }),
+      );
+      await assertSucceeds(
+        setDoc(doc(as("u", ["Admin"]), "members/new_badge"), {
+          ...payload,
+          isPastPresident: true,
+        }),
+      );
+    });
+  });
+
   it("allows the production create payload shape (mirrors toMemberCreateDoc)", async () => {
     await assertSucceeds(
       setDoc(doc(as("u", ["Membership"]), "members/new_prod_shape"), {
