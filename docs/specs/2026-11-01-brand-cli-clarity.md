@@ -11,15 +11,16 @@ deploy pipeline.
    `Status` and `Details` columns; the section title heads the first column. Columns line up
    across sections. No dependency: `cli/table.ts` is enough.
 2. **Text wraps inside the table.** The table fits the window, capped at 120 columns, and
-   uses 100 when there is no window (a pipe, CI). Only the last column gives up width;
-   a word longer than the column breaks.
+   uses 100 when there is no window (a pipe, CI). Only the last column gives up width, down
+   to 16 columns, so a window under about 57 scrolls; a word longer than the column breaks.
 3. **Status in words.** `✓ OK`, `! Note`, `✗ Problem`, `- Skipped`. No colour, so the output
    reads the same in a pipe and in a CI log.
 4. **Stable ids, plain labels.** `CheckRow.check` stays the id code and tests use.
    `ROW_LABELS` maps it to what the reader sees ("Deploy sign-in", "GitHub account"). An
    image's row keeps its path.
 5. **Verdict first.** `brand:check` opens with one line: problems to fix, notes worth a
-   look, or everything ready. The exit code is unchanged.
+   look, no problems so far (checks still wait for going live), or everything ready. The
+   exit code is unchanged.
 6. **"To fix:" means a problem.** When only notes remain, the same block is titled
    "Worth a look:".
 7. **`--repo` on every `gh` hint.** In a fork, `gh` may default to upstream, so a printed

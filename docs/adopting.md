@@ -110,7 +110,7 @@ with a note until your fork's repository variables name a real project (step 9).
 | 9 | Keyless CD and the repository variables | `pnpm brand:provision`, steps 1 and 2 (answer **y**: do step 2) |
 | 10 | Create the assets bucket | `pnpm brand:provision` (answer **y**: do step 3) |
 | 11 | Upload the images | `pnpm brand:push` |
-| 12 | Go live | `gh workflow run deploy.yml -f surface=all` |
+| 12 | Go live | `gh workflow run deploy.yml -f surface=all --repo <owner>/<your fork>` |
 | 13 | First admin | `pnpm seed:production --project <id>` |
 
 "You" means a chapter member. Part 2 needs owner access to the Firebase project and admin
@@ -191,7 +191,7 @@ Then sign in. Each tool keeps its own sign-in on your computer, outside the repo
 |---|---|---|---|
 | `gh`, as an admin of your fork | `gh auth login` | step 9 | `gh auth status` |
 | `gcloud`, as an owner of your Firebase project | `gcloud auth login` | steps 9 to 11 | `gcloud auth list` |
-| `gcloud` Application Default Credentials (the sign-in scripts use) | `gcloud auth application-default login` | step 13 | the `gcloud ADC` row of `brand:check` |
+| `gcloud` Application Default Credentials (the sign-in scripts use) | `gcloud auth application-default login` | step 13 | the "Google Cloud app login" row of `brand:check` |
 | Firebase CLI | `firebase login` | step 7, only to read the API keys for you | `firebase login:list` |
 
 Once your chapter is connected (step 7), `brand:check`'s going-live section fails until
@@ -333,9 +333,9 @@ pnpm brand:check
 
 Four sections, in the order fixes must happen: the tools on this computer (Node, pnpm,
 Java, the Firebase CLI); your chapter (which profile `brand/` selects and why, the
-profile, `brand.toml`, `.firebaserc`); the images; and going live (CD
-identity, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
-row reports even when an earlier one fails. Until step 11 the **bucket** row fails, and
+profile, `brand.toml`, `.firebaserc`); the images; and going live (the
+deploy sign-in, `gh` and `gcloud` with their sign-ins, and the bucket). It only reads, and every
+row reports even when an earlier one fails. Until step 11 the **Brand storage** row fails, and
 **Deploy sign-in** (your fork's repository variables, read with `gh variable get --repo` on the
 fork `git remote get-url origin` names) warns until step 9, and while `origin` is not your
 fork; it fails when they name another project than `brand.toml`.
@@ -406,7 +406,7 @@ overwrite an object someone else changed since your last pull or push. It refuse
 image has a problem, rewrites `brand/local/.pull-manifest.json` with what it uploaded, and
 never deletes; versioning keeps every overwritten file for rollback. A brand change is not
 in git, so after going live CD does not see it on its own: `brand:push` prints the hosting
-deploy command for that, `gh workflow run deploy.yml -f surface=hosting`.
+deploy command for that, `gh workflow run deploy.yml -f surface=hosting --repo <owner>/<your fork>`.
 
 Deploys use only the bucket's copy: CD pulls `brand.toml` and the images from
 `gs://<project>-brand-assets/` (the default bucket name; CD never reads an `assetsBucket`
@@ -457,9 +457,9 @@ the emulators and any project other than the one your profile names.
 
 | Change | Do |
 |---|---|
-| A profile value (`brand.toml`) | Edit `brand/local/brand.toml`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` |
+| A profile value (`brand.toml`) | Edit `brand/local/brand.toml`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting --repo <owner>/<your fork>` |
 | Site content | The admin `/config` screen |
-| An image | Replace it in `brand/local/`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting` |
+| An image | Replace it in `brand/local/`, `pnpm brand:check`, `pnpm brand:push`, then `gh workflow run deploy.yml -f surface=hosting --repo <owner>/<your fork>` |
 | Roll back an image | `gcloud storage cp gs://<bucket>/<file>#<generation> gs://<bucket>/<file>`, then deploy |
 | Take upstream's updates | **Sync fork** on your fork's GitHub page: the push to your `main` runs CI, then Deploy redeploys the surfaces the update touches |
 | Deploy to another project | `pnpm brand:init` (connect it), `pnpm brand:provision`, set both variables again, `pnpm brand:push`; the first deploy to it ships everything |
